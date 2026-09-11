@@ -1,0 +1,16 @@
+{
+  "name": "canlua-monorepo",
+  "version": "1.0.0",
+  "description": "Can Lua Thong Minh Monorepo",
+  "scripts": {
+    "build": "npm run build --prefix client && npm run build --prefix server",
+    "start": "node server/dist/index.js",
+    "dev:server": "cd server && npm run dev",
+    "dev:client": "cd client && npm run dev",
+    "seed": "cd server && npm run seed",
+    "install:all": "npm install && cd server && npm install && cd ../client && npm install"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
+}
