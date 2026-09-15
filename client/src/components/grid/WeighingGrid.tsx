@@ -81,13 +81,19 @@ export const WeighingGrid: React.FC<WeighingGridProps> = ({
 
   // Sync columns with prop when session changes & pad to multiples of 5 (1 khu = 5 columns = 25 bao)
   useEffect(() => {
-    const rawCols = session.columns || [];
+    const rawCols = Array.isArray(session.columns) ? session.columns : [];
     const minCols = Math.max(5, Math.ceil(rawCols.length / 5) * 5);
     const padded: GridColumn[] = [];
 
     for (let i = 0; i < minCols; i++) {
-      if (i < rawCols.length) {
-        padded.push(rawCols[i]);
+      if (i < rawCols.length && rawCols[i]) {
+        const r = Array.isArray(rawCols[i].rows) ? [...rawCols[i].rows] : [null, null, null, null, null];
+        while (r.length < 5) r.push(null);
+        padded.push({
+          colIndex: i,
+          colLabel: rawCols[i].colLabel || `${i + 1}`,
+          rows: r.slice(0, 5),
+        });
       } else {
         padded.push({
           colIndex: i,
@@ -101,8 +107,8 @@ export const WeighingGrid: React.FC<WeighingGridProps> = ({
 
     setRawInputs((prev) => {
       const newRaw = { ...prev };
-      rawCols.forEach((col, cIdx) => {
-        col.rows.forEach((val, rIdx) => {
+      padded.forEach((col, cIdx) => {
+        (col.rows || []).forEach((val, rIdx) => {
           const key = `${cIdx}_${rIdx}`;
           // Không ghi đè nếu người dùng đang gõ dở ở ô hiện tại
           if (activeCell?.col === cIdx && activeCell?.row === rIdx) {
@@ -268,13 +274,20 @@ export const WeighingGrid: React.FC<WeighingGridProps> = ({
 
     // Update local state immediately for instant feedback
     setColumns((prevCols) => {
-      const newCols = prevCols.map((c) => ({ ...c, rows: [...c.rows] }));
+      const newCols = prevCols.map((c) => {
+        const r = Array.isArray(c?.rows) ? [...c.rows] : [null, null, null, null, null];
+        while (r.length < 5) r.push(null);
+        return { ...c, rows: r.slice(0, 5) };
+      });
       while (newCols.length <= colIdx) {
         newCols.push({
           colIndex: newCols.length,
           colLabel: `${newCols.length + 1}`,
           rows: [null, null, null, null, null],
         });
+      }
+      if (!newCols[colIdx].rows) {
+        newCols[colIdx].rows = [null, null, null, null, null];
       }
       newCols[colIdx].rows[rowIdx] = numVal;
       return newCols;
@@ -397,14 +410,14 @@ export const WeighingGrid: React.FC<WeighingGridProps> = ({
 
   // Calculate local subtotal for a single column
   const getColSubtotal = (col: GridColumn) => {
-    return col.rows.reduce<number>((sum, val) => {
+    return (col?.rows || []).reduce<number>((sum, val) => {
       return sum + (typeof val === 'number' && !isNaN(val) ? val : 0);
     }, 0);
   };
 
   // Count non-empty bags in column
   const getColBagCount = (col: GridColumn) => {
-    return col.rows.filter((v) => typeof v === 'number' && !isNaN(v) && v > 0).length;
+    return (col?.rows || []).filter((v) => typeof v === 'number' && !isNaN(v) && v > 0).length;
   };
 
   // Zone Calculations: 5 columns = 25 bags per zone
@@ -422,7 +435,7 @@ export const WeighingGrid: React.FC<WeighingGridProps> = ({
     let zoneGross = 0;
 
     zoneCols.forEach((col) => {
-      col.rows.forEach((val) => {
+      (col?.rows || []).forEach((val) => {
         if (typeof val === 'number' && !isNaN(val) && val > 0) {
           filledBags += 1;
           zoneGross += val;
@@ -861,9 +874,11 @@ export const WeighingGrid: React.FC<WeighingGridProps> = ({
                         {/* 5 Row Cells */}
                         {[0, 1, 2, 3, 4].map((rowIdx) => {
                           const cellKey = `${actualColIdx}_${rowIdx}`;
+                          const rows = Array.isArray(col?.rows) ? col.rows : [];
+                          const cellVal = rows[rowIdx];
                           const currentVal =
                             rawInputs[cellKey] ??
-                            (col.rows[rowIdx] !== null ? String(col.rows[rowIdx]) : '');
+                            (cellVal !== null && cellVal !== undefined ? String(cellVal) : '');
                           const numVal = parseFloat(currentVal);
                           const isWarning = !isNaN(numVal) && numVal > warningThresholdKg;
                           const isActive =

@@ -254,8 +254,19 @@ export const updateCell = async (req: AuthRequest, res: Response): Promise<void>
       }
     }
 
-    // Expand columns if colIndex is beyond current columns
-    const columns: IGridColumn[] = [...session.columns];
+    // Expand and normalize columns safely
+    let columns: IGridColumn[] = Array.isArray(session.columns)
+      ? session.columns.map((c, idx) => {
+          const r = Array.isArray(c?.rows) ? [...c.rows] : [null, null, null, null, null];
+          while (r.length < 5) r.push(null);
+          return {
+            colIndex: idx,
+            colLabel: c?.colLabel || `${idx + 1}`,
+            rows: r.slice(0, 5),
+          };
+        })
+      : [];
+
     while (columns.length <= colIndex) {
       const nextIdx = columns.length;
       columns.push({
@@ -272,6 +283,7 @@ export const updateCell = async (req: AuthRequest, res: Response): Promise<void>
     const stats = calculateGridStats(columns, session.pricePerKg, session.tareWeightPerBagKg);
 
     session.columns = columns;
+    session.markModified('columns');
     session.grossWeightKg = stats.grossWeightKg;
     session.tareTotalKg = stats.tareTotalKg;
     session.totalWeightKg = stats.totalWeightKg;
@@ -589,8 +601,19 @@ export const deleteZone = async (req: AuthRequest, res: Response): Promise<void>
       }
     }
 
-    let columns = [...session.columns];
-    const totalZones = Math.max(1, Math.ceil(columns.length / 5));
+    let rawCols: IGridColumn[] = Array.isArray(session.columns)
+      ? session.columns.map((c, idx) => {
+          const r = Array.isArray(c?.rows) ? [...c.rows] : [null, null, null, null, null];
+          while (r.length < 5) r.push(null);
+          return {
+            colIndex: idx,
+            colLabel: c?.colLabel || `${idx + 1}`,
+            rows: r.slice(0, 5),
+          };
+        })
+      : [];
+
+    const totalZones = Math.max(1, Math.ceil(rawCols.length / 5));
 
     if (zIdx >= totalZones) {
       res.status(400).json({ success: false, message: 'Khu cần xóa không tồn tại' });
@@ -598,6 +621,7 @@ export const deleteZone = async (req: AuthRequest, res: Response): Promise<void>
     }
 
     const startCol = zIdx * 5;
+    let columns = [...rawCols];
 
     if (totalZones <= 1) {
       // Nếu chỉ có 1 khu, làm sạch dữ liệu 5 cột thay vì xóa sạch không còn ô nào
@@ -622,9 +646,9 @@ export const deleteZone = async (req: AuthRequest, res: Response): Promise<void>
       columns.splice(startCol, 5);
       // Đánh lại số thứ tự cột colIndex và colLabel
       columns = columns.map((col, idx) => ({
-        ...col,
         colIndex: idx,
         colLabel: `${idx + 1}`,
+        rows: Array.isArray(col.rows) && col.rows.length === 5 ? col.rows : [null, null, null, null, null],
       }));
     }
 
@@ -632,6 +656,7 @@ export const deleteZone = async (req: AuthRequest, res: Response): Promise<void>
     const stats = calculateGridStats(columns, session.pricePerKg, session.tareWeightPerBagKg);
 
     session.columns = columns;
+    session.markModified('columns');
     session.grossWeightKg = stats.grossWeightKg;
     session.tareTotalKg = stats.tareTotalKg;
     session.totalWeightKg = stats.totalWeightKg;

@@ -18,12 +18,16 @@ export function calculateGridStats(
   let totalWeighCount = 0;
   const columnSubtotals: number[] = [];
 
-  for (let colIdx = 0; colIdx < columns.length; colIdx++) {
-    const col = columns[colIdx];
+  const safeCols = Array.isArray(columns) ? columns : [];
+
+  for (let colIdx = 0; colIdx < safeCols.length; colIdx++) {
+    const col = safeCols[colIdx];
+    if (!col) continue;
+    const rows = Array.isArray(col.rows) ? col.rows : [];
     let colSum = 0;
 
     for (let rowIdx = 0; rowIdx < 5; rowIdx++) {
-      const val = col.rows[rowIdx];
+      const val = rows[rowIdx];
       if (typeof val === 'number' && !isNaN(val) && val > 0) {
         // Round to 2 decimal places to prevent floating point inaccuracies
         const rounded = Math.round(val * 100) / 100;
