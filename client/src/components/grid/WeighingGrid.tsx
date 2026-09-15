@@ -19,6 +19,7 @@ import {
   ChevronRight,
   ChevronUp,
   ChevronDown,
+  Trash2,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -148,6 +149,69 @@ export const WeighingGrid: React.FC<WeighingGridProps> = ({
     const newZoneNumber = Math.ceil(columns.length / 5) + 1;
     toast.success(`Đã thêm Khu ${newZoneNumber} (+25 bao đều nhau)`);
   }, [columns.length]);
+
+  // Delete / Clear 1 Zone
+  const handleDeleteZone = async (zoneIdx: number) => {
+    if (isReadOnly) return;
+
+    const currentTotalZones = Math.max(1, Math.ceil(columns.length / 5));
+    const startCol = zoneIdx * 5;
+    const endCol = Math.min(startCol + 5, columns.length);
+    const zoneCols = columns.slice(startCol, endCol);
+
+    let filledCount = 0;
+    let zoneGross = 0;
+    zoneCols.forEach((c) => {
+      c.rows.forEach((v) => {
+        if (typeof v === 'number' && !isNaN(v) && v > 0) {
+          filledCount++;
+          zoneGross += v;
+        }
+      });
+    });
+
+    const zoneName = `Khu ${zoneIdx + 1}`;
+    let confirmMsg = '';
+    if (currentTotalZones <= 1) {
+      confirmMsg = filledCount > 0
+        ? `Bạn có chắc muốn xóa trắng toàn bộ dữ liệu của ${zoneName} (${filledCount} bao, tổng ${formatKg(zoneGross)} kg)?`
+        : `Làm trống ${zoneName}?`;
+    } else {
+      confirmMsg = filledCount > 0
+        ? `CẢNH BÁO: ${zoneName} đang có ${filledCount} bao (${formatKg(zoneGross)} kg).\nBạn có chắc chắn muốn XÓA HẲN khu này không?`
+        : `Bạn có chắc chắn muốn xóa ${zoneName} không?`;
+    }
+
+    if (!window.confirm(confirmMsg)) {
+      return;
+    }
+
+    setSaveStatus('saving');
+    try {
+      const res = await apiClient.delete(`/weighing-sessions/${session._id}/zone/${zoneIdx}`);
+      if (res.data.success) {
+        setSaveStatus('saved');
+        toast.success(res.data.message || `Đã xóa ${zoneName}`);
+
+        // Reset raw inputs cache
+        setRawInputs({});
+
+        // Remove checked status for this zone
+        setCheckedZones((prev) =>
+          prev.filter((z) => z !== zoneIdx).map((z) => (z > zoneIdx ? z - 1 : z))
+        );
+
+        if (typeof selectedZoneTab === 'number' && selectedZoneTab >= currentTotalZones - 1) {
+          setSelectedZoneTab('all');
+        }
+
+        onSessionUpdated(res.data.data.session);
+      }
+    } catch (err: any) {
+      setSaveStatus('error');
+      toast.error(err.response?.data?.message || 'Lỗi khi xóa khu');
+    }
+  };
 
   // Add single column
   const addColumn = useCallback(() => {
@@ -459,8 +523,22 @@ export const WeighingGrid: React.FC<WeighingGridProps> = ({
               title="Thêm một khu mới gồm 25 ô cân đều nhau"
             >
               <Plus className="w-4 h-4" />
-              <span className="hidden xs:inline">+ Thêm Khu (25 bao)</span>
+              <span className="hidden xs:inline">+ Thêm Khu</span>
               <span className="xs:hidden">+ Khu</span>
+            </button>
+          )}
+
+          {/* Delete Last Zone Button (Xóa khu cuối khi có > 1 khu) */}
+          {!isReadOnly && totalZones > 1 && (
+            <button
+              type="button"
+              onClick={() => handleDeleteZone(totalZones - 1)}
+              className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 dark:bg-rose-950/40 dark:border-rose-900/60 dark:text-rose-400 active:scale-95 rounded-lg text-xs font-semibold shadow-xs transition-all flex-shrink-0"
+              title={`Xóa Khu ${totalZones} cuối cùng`}
+            >
+              <Trash2 className="w-4 h-4 text-rose-600 dark:text-rose-400" />
+              <span className="hidden sm:inline">Xóa Khu {totalZones}</span>
+              <span className="sm:hidden">Xóa Khu</span>
             </button>
           )}
         </div>
@@ -647,6 +725,20 @@ export const WeighingGrid: React.FC<WeighingGridProps> = ({
                         </>
                       )}
                     </button>
+
+                    {/* Nút Xóa Khu */}
+                    {!isReadOnly && (
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteZone(zone.zoneIndex)}
+                        title={`Xóa ${zone.label} (${totalZones <= 1 ? 'Làm trống 25 bao' : 'Xóa bỏ 25 bao'})`}
+                        className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1 sm:py-1.5 rounded-xl border border-rose-200 dark:border-rose-900/60 text-rose-600 dark:text-rose-400 bg-rose-50/80 dark:bg-rose-950/40 hover:bg-rose-100 dark:hover:bg-rose-950/80 hover:border-rose-300 text-[11px] sm:text-xs font-bold transition-all active:scale-95 shadow-2xs"
+                      >
+                        <Trash2 className="w-3.5 h-3.5 text-rose-500" />
+                        <span className="hidden xs:inline">Xóa khu</span>
+                        <span className="xs:hidden">Xóa</span>
+                      </button>
+                    )}
                   </div>
                 </div>
 

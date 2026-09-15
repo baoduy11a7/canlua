@@ -9,6 +9,7 @@ import {
   markSessionPaid,
   reopenSession,
   deleteSession,
+  deleteZone,
 } from '../controllers/session.controller';
 import { authenticate } from '../middlewares/auth';
 
@@ -25,5 +26,6 @@ router.post('/:id/close', closeSession);
 router.post('/:id/paid', markSessionPaid);
 router.post('/:id/reopen', reopenSession);
 router.delete('/:id', deleteSession);
+router.delete('/:id/zone/:zoneIndex', deleteZone);
 
 export default router;

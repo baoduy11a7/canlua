@@ -563,3 +563,93 @@ export const deleteSession = async (req: AuthRequest, res: Response): Promise<vo
     res.status(500).json({ success: false, message: error.message });
   }
 };
+
+export const deleteZone = async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { id, zoneIndex } = req.params;
+    const zIdx = parseInt(String(zoneIndex), 10);
+    if (isNaN(zIdx) || zIdx < 0) {
+      res.status(400).json({ success: false, message: 'Chỉ số khu không hợp lệ' });
+      return;
+    }
+
+    const session = await WeighingSession.findById(id);
+    if (!session) {
+      res.status(404).json({ success: false, message: 'Không tìm thấy phiếu cân' });
+      return;
+    }
+
+    if (session.status === 'closed' || session.status === 'paid') {
+      if (!req.user || (req.user.role !== 'admin' && req.user.role !== 'chu_vua')) {
+        res.status(403).json({
+          success: false,
+          message: 'Phiếu cân đã chốt/thanh toán, chỉ Quản trị viên mới có quyền chỉnh sửa',
+        });
+        return;
+      }
+    }
+
+    let columns = [...session.columns];
+    const totalZones = Math.max(1, Math.ceil(columns.length / 5));
+
+    if (zIdx >= totalZones) {
+      res.status(400).json({ success: false, message: 'Khu cần xóa không tồn tại' });
+      return;
+    }
+
+    const startCol = zIdx * 5;
+
+    if (totalZones <= 1) {
+      // Nếu chỉ có 1 khu, làm sạch dữ liệu 5 cột thay vì xóa sạch không còn ô nào
+      columns = columns.map((col, idx) => {
+        if (idx < 5) {
+          return {
+            ...col,
+            rows: [null, null, null, null, null],
+          };
+        }
+        return col;
+      });
+      while (columns.length < 5) {
+        columns.push({
+          colIndex: columns.length,
+          colLabel: `${columns.length + 1}`,
+          rows: [null, null, null, null, null],
+        });
+      }
+    } else {
+      // Xóa 5 cột của khu này
+      columns.splice(startCol, 5);
+      // Đánh lại số thứ tự cột colIndex và colLabel
+      columns = columns.map((col, idx) => ({
+        ...col,
+        colIndex: idx,
+        colLabel: `${idx + 1}`,
+      }));
+    }
+
+    // Tính lại toàn bộ thống kê tổng
+    const stats = calculateGridStats(columns, session.pricePerKg, session.tareWeightPerBagKg);
+
+    session.columns = columns;
+    session.grossWeightKg = stats.grossWeightKg;
+    session.tareTotalKg = stats.tareTotalKg;
+    session.totalWeightKg = stats.totalWeightKg;
+    session.totalWeighCount = stats.totalWeighCount;
+    session.totalAmount = stats.totalAmount;
+
+    await session.save();
+
+    res.json({
+      success: true,
+      message: `Đã xóa Khu ${zIdx + 1}`,
+      data: {
+        session,
+        stats,
+      },
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, message: error.message || 'Lỗi khi xóa khu' });
+  }
+};
+
