@@ -45,6 +45,7 @@ export const WeighingGrid: React.FC<WeighingGridProps> = ({
   const [checkedZones, setCheckedZones] = useState<number[]>([]);
   const [isCrossCheckModalOpen, setIsCrossCheckModalOpen] = useState(false);
   const [isMobileStatsExpanded, setIsMobileStatsExpanded] = useState(false);
+  const [isDeleteZoneMenuOpen, setIsDeleteZoneMenuOpen] = useState(false);
 
   const debounceTimerRef = useRef<{ [key: string]: NodeJS.Timeout }>({});
   const gridContainerRef = useRef<HTMLDivElement>(null);
@@ -528,18 +529,74 @@ export const WeighingGrid: React.FC<WeighingGridProps> = ({
             </button>
           )}
 
-          {/* Delete Last Zone Button (Xóa khu cuối khi có > 1 khu) */}
-          {!isReadOnly && totalZones > 1 && (
-            <button
-              type="button"
-              onClick={() => handleDeleteZone(totalZones - 1)}
-              className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 dark:bg-rose-950/40 dark:border-rose-900/60 dark:text-rose-400 active:scale-95 rounded-lg text-xs font-semibold shadow-xs transition-all flex-shrink-0"
-              title={`Xóa Khu ${totalZones} cuối cùng`}
-            >
-              <Trash2 className="w-4 h-4 text-rose-600 dark:text-rose-400" />
-              <span className="hidden sm:inline">Xóa Khu {totalZones}</span>
-              <span className="sm:hidden">Xóa Khu</span>
-            </button>
+          {/* Delete Zone Button (Xóa từng khu linh hoạt) */}
+          {!isReadOnly && (
+            typeof selectedZoneTab === 'number' ? (
+              <button
+                type="button"
+                onClick={() => handleDeleteZone(selectedZoneTab)}
+                className="flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 dark:bg-rose-950/40 dark:border-rose-900/60 dark:text-rose-400 active:scale-95 rounded-lg text-xs font-semibold shadow-xs transition-all flex-shrink-0"
+                title={`Xóa Khu ${selectedZoneTab + 1} đang chọn`}
+              >
+                <Trash2 className="w-4 h-4 text-rose-600 dark:text-rose-400" />
+                <span>Xóa Khu {selectedZoneTab + 1}</span>
+              </button>
+            ) : totalZones > 1 ? (
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setIsDeleteZoneMenuOpen(!isDeleteZoneMenuOpen)}
+                  className="flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 dark:bg-rose-950/40 dark:border-rose-900/60 dark:text-rose-400 active:scale-95 rounded-lg text-xs font-semibold shadow-xs transition-all flex-shrink-0"
+                  title="Chọn khu để xóa"
+                >
+                  <Trash2 className="w-4 h-4 text-rose-600 dark:text-rose-400" />
+                  <span>Xóa Khu ▾</span>
+                </button>
+
+                {isDeleteZoneMenuOpen && (
+                  <>
+                    <div
+                      className="fixed inset-0 z-40"
+                      onClick={() => setIsDeleteZoneMenuOpen(false)}
+                    />
+                    <div className="absolute right-0 top-full mt-1.5 w-52 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-xl z-50 p-1.5 animate-in fade-in">
+                      <div className="px-2 py-1 text-[11px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100 dark:border-slate-800 mb-1">
+                        Chọn khu cần xóa:
+                      </div>
+                      {zoneData.map((z) => (
+                        <button
+                          key={z.zoneIndex}
+                          type="button"
+                          onClick={() => {
+                            setIsDeleteZoneMenuOpen(false);
+                            handleDeleteZone(z.zoneIndex);
+                          }}
+                          className="w-full flex items-center justify-between px-2.5 py-2 text-xs font-semibold rounded-lg hover:bg-rose-50 text-slate-700 hover:text-rose-600 dark:text-slate-200 dark:hover:bg-rose-950/40 transition-all text-left"
+                        >
+                          <span className="flex items-center gap-1.5">
+                            <Trash2 className="w-3.5 h-3.5 text-rose-500" />
+                            {z.label}
+                          </span>
+                          <span className="text-[11px] font-mono text-slate-400">
+                            {z.filledBags}/25 bao
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => handleDeleteZone(0)}
+                className="flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 dark:bg-rose-950/40 dark:border-rose-900/60 dark:text-rose-400 active:scale-95 rounded-lg text-xs font-semibold shadow-xs transition-all flex-shrink-0"
+                title="Xóa trắng số liệu Khu 1"
+              >
+                <Trash2 className="w-4 h-4 text-rose-600 dark:text-rose-400" />
+                <span>Xóa Khu 1</span>
+              </button>
+            )
           )}
         </div>
       </div>
@@ -555,7 +612,7 @@ export const WeighingGrid: React.FC<WeighingGridProps> = ({
           <button
             type="button"
             onClick={() => setSelectedZoneTab('all')}
-            className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${
+            className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${
               selectedZoneTab === 'all'
                 ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-xs'
                 : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-100'
@@ -564,13 +621,11 @@ export const WeighingGrid: React.FC<WeighingGridProps> = ({
             <span>Tất Cả ({totalZones})</span>
           </button>
 
-          {/* Tab từng khu */}
+          {/* Tab từng khu - Có nút thùng rác xóa trực tiếp từng khu */}
           {zoneData.map((z) => (
-            <button
+            <div
               key={z.zoneIndex}
-              type="button"
-              onClick={() => setSelectedZoneTab(z.zoneIndex)}
-              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold transition-all whitespace-nowrap border ${
+              className={`inline-flex items-center rounded-lg text-xs font-bold transition-all whitespace-nowrap border ${
                 selectedZoneTab === z.zoneIndex
                   ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs ring-2 ring-emerald-500/20'
                   : z.isChecked
@@ -578,12 +633,35 @@ export const WeighingGrid: React.FC<WeighingGridProps> = ({
                   : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700/60'
               }`}
             >
-              <span>{z.label}</span>
-              <span className="opacity-80 text-[11px] font-normal font-mono">({z.filledBags}/25)</span>
-              {z.isChecked && (
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-300 inline" />
+              <button
+                type="button"
+                onClick={() => setSelectedZoneTab(z.zoneIndex)}
+                className="flex items-center gap-1.5 pl-2.5 pr-1.5 py-1.5"
+              >
+                <span>{z.label}</span>
+                <span className="opacity-80 text-[11px] font-normal font-mono">({z.filledBags}/25)</span>
+                {z.isChecked && (
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-300 inline" />
+                )}
+              </button>
+              {!isReadOnly && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleDeleteZone(z.zoneIndex);
+                  }}
+                  title={`Xóa ${z.label}`}
+                  className={`p-1 mr-1 rounded-md transition-all ${
+                    selectedZoneTab === z.zoneIndex
+                      ? 'text-white/80 hover:text-white hover:bg-white/20'
+                      : 'text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/50'
+                  }`}
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
               )}
-            </button>
+            </div>
           ))}
         </div>
 
@@ -638,7 +716,7 @@ export const WeighingGrid: React.FC<WeighingGridProps> = ({
               >
                 {/* ZONE CARD HEADER */}
                 <div
-                  className={`flex items-center justify-between px-3 sm:px-4 py-2.5 sm:py-3 border-b ${
+                  className={`flex flex-wrap items-center justify-between gap-2.5 px-3 sm:px-4 py-2.5 sm:py-3 border-b ${
                     zone.isChecked
                       ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800'
                       : 'bg-slate-50 dark:bg-slate-850 border-slate-200 dark:border-slate-800'
@@ -683,10 +761,10 @@ export const WeighingGrid: React.FC<WeighingGridProps> = ({
                     </div>
                   </div>
 
-                  {/* Right: Subtotal of Zone & "Đã Đọ Sổ" Toggle */}
-                  <div className="flex items-center gap-2 sm:gap-3">
+                  {/* Right: Subtotal of Zone, "Đã Đọ Sổ" & "Xóa Khu" */}
+                  <div className="flex items-center gap-1.5 sm:gap-2.5 ml-auto flex-wrap">
                     {/* Zone Subtotal Pill */}
-                    <div className="text-right">
+                    <div className="text-right mr-1">
                       <div className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-slate-400">
                         Tổng Khu {zone.zoneNumber}
                       </div>
