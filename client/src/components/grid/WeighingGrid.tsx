@@ -676,7 +676,7 @@ export const WeighingGrid: React.FC<WeighingGridProps> = ({
                     return (
                       <div
                         key={actualColIdx}
-                        className="flex flex-col gap-1.5 sm:gap-2.5 flex-1 min-w-[54px] xs:min-w-[62px] sm:min-w-0 sm:w-36 md:w-40 lg:w-44 flex-shrink-0 sm:flex-shrink-0 bg-slate-50/80 dark:bg-slate-950/50 p-1 xs:p-1.5 sm:p-2.5 rounded-2xl border border-slate-200/80 dark:border-slate-800 transition-all hover:border-emerald-300 dark:hover:border-emerald-800"
+                        className="flex flex-col gap-1.5 sm:gap-2.5 flex-1 min-w-[64px] xs:min-w-[72px] sm:min-w-0 sm:w-36 md:w-40 lg:w-44 flex-shrink-0 sm:flex-shrink-0 bg-slate-50/80 dark:bg-slate-950/50 p-1 xs:p-1.5 sm:p-2.5 rounded-2xl border border-slate-200/80 dark:border-slate-800 transition-all hover:border-emerald-300 dark:hover:border-emerald-800"
                       >
                         {/* Column Header */}
                         <div className="flex items-center justify-between pb-1 sm:pb-1.5 border-b border-slate-200/80 dark:border-slate-800 text-center font-mono">
@@ -702,6 +702,17 @@ export const WeighingGrid: React.FC<WeighingGridProps> = ({
                           // Global continuous bag number (#1, #2, ... #25, #26...)
                           const bagNumber = actualColIdx * 5 + rowIdx + 1;
 
+                          // Tự động điều chỉnh cỡ chữ theo độ dài để 4 số (vd 50.5, 1200) hoặc 5 số luôn hiển thị trọn vẹn, không bị che khuất
+                          const valLen = currentVal.length;
+                          const dynamicFontSize =
+                            valLen >= 5
+                              ? 'text-xs xs:text-sm sm:text-lg md:text-2xl tracking-tighter'
+                              : valLen >= 4
+                              ? 'text-sm xs:text-base sm:text-xl md:text-3xl tracking-tight'
+                              : valLen === 3
+                              ? 'text-base xs:text-lg sm:text-2xl md:text-3xl'
+                              : 'text-lg xs:text-xl sm:text-3xl md:text-4xl';
+
                           return (
                             <form
                               key={rowIdx}
@@ -712,7 +723,7 @@ export const WeighingGrid: React.FC<WeighingGridProps> = ({
                               className="relative group m-0 p-0"
                             >
                               {/* Small bag index tag in corner */}
-                              <span className="absolute left-1.5 top-1 text-[9px] xs:text-[10px] sm:text-xs font-mono font-extrabold text-slate-400 dark:text-slate-500 bg-slate-100/90 dark:bg-slate-800/90 px-1 py-0.2 rounded pointer-events-none z-10">
+                              <span className="absolute left-1 top-1 text-[8px] xs:text-[9px] sm:text-xs font-mono font-extrabold text-slate-400 dark:text-slate-500 bg-slate-100/90 dark:bg-slate-800/90 px-1 py-0.2 rounded pointer-events-none z-10">
                                 #{bagNumber}
                               </span>
 
@@ -731,7 +742,7 @@ export const WeighingGrid: React.FC<WeighingGridProps> = ({
                                 onFocus={() =>
                                   setActiveCell({ col: actualColIdx, row: rowIdx })
                                 }
-                                className={`h-14 xs:h-16 sm:h-20 md:h-22 w-full pt-3 xs:pt-4 sm:pt-5 text-center text-xl xs:text-2xl sm:text-3xl md:text-4xl font-mono font-black rounded-xl sm:rounded-2xl border-2 transition-all weigh-cell-input ${
+                                className={`h-14 xs:h-16 sm:h-20 md:h-22 w-full pt-3 xs:pt-4 sm:pt-5 pb-0.5 px-0.5 xs:px-1 text-center font-black tabular-nums rounded-xl sm:rounded-2xl border-2 transition-all weigh-cell-input ${dynamicFontSize} ${
                                   isWarning
                                     ? 'border-amber-400 dark:border-amber-600 bg-amber-50/70 dark:bg-amber-950/50 text-amber-900 dark:text-amber-200 shadow-md ring-2 ring-amber-400/30'
                                     : isActive
