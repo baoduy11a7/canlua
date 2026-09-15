@@ -17,6 +17,10 @@ import {
   Square,
   FileSpreadsheet,
   X,
+  ChevronLeft,
+  ChevronRight,
+  ChevronUp,
+  ChevronDown,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -41,6 +45,7 @@ export const WeighingGrid: React.FC<WeighingGridProps> = ({
   const [selectedZoneTab, setSelectedZoneTab] = useState<'all' | number>('all');
   const [checkedZones, setCheckedZones] = useState<number[]>([]);
   const [isCrossCheckModalOpen, setIsCrossCheckModalOpen] = useState(false);
+  const [isMobileStatsExpanded, setIsMobileStatsExpanded] = useState(false);
 
   const debounceTimerRef = useRef<{ [key: string]: NodeJS.Timeout }>({});
   const gridContainerRef = useRef<HTMLDivElement>(null);
@@ -94,15 +99,24 @@ export const WeighingGrid: React.FC<WeighingGridProps> = ({
 
     setColumns(padded);
 
-    const newRaw: { [key: string]: string } = {};
-    rawCols.forEach((col, cIdx) => {
-      col.rows.forEach((val, rIdx) => {
-        if (val !== null && val !== undefined) {
-          newRaw[`${cIdx}_${rIdx}`] = String(val);
-        }
+    setRawInputs((prev) => {
+      const newRaw = { ...prev };
+      rawCols.forEach((col, cIdx) => {
+        col.rows.forEach((val, rIdx) => {
+          const key = `${cIdx}_${rIdx}`;
+          // Không ghi đè nếu người dùng đang gõ dở ở ô hiện tại
+          if (activeCell?.col === cIdx && activeCell?.row === rIdx) {
+            return;
+          }
+          if (val !== null && val !== undefined) {
+            newRaw[key] = String(val);
+          } else if (!newRaw[key]) {
+            newRaw[key] = '';
+          }
+        });
       });
+      return newRaw;
     });
-    setRawInputs(newRaw);
   }, [session._id, session.columns]);
 
   // Focus helper
@@ -218,6 +232,61 @@ export const WeighingGrid: React.FC<WeighingGridProps> = ({
     }, 800);
   };
 
+  // Tự động nhảy xuống ô tiếp theo (hàng dưới, hết cột thì sang đầu cột kế)
+  const moveToNextCell = (colIdx: number, rowIdx: number) => {
+    if (isReadOnly) return;
+
+    // Lưu tức thì ô hiện tại nếu đang có debounce chờ
+    const cellKey = `${colIdx}_${rowIdx}`;
+    if (debounceTimerRef.current[cellKey]) {
+      clearTimeout(debounceTimerRef.current[cellKey]);
+      delete debounceTimerRef.current[cellKey];
+      const currentVal = rawInputs[cellKey];
+      const numVal = currentVal && !isNaN(parseFloat(currentVal)) ? parseFloat(currentVal) : null;
+      saveCellToServer(colIdx, rowIdx, numVal);
+    }
+
+    if (soundEnabled) playBeep(880, 0.05);
+
+    if (rowIdx < 4) {
+      // Nhảy xuống hàng tiếp theo trong cùng cột (Row 0 -> 1 -> 2 -> 3 -> 4)
+      focusCell(colIdx, rowIdx + 1);
+    } else {
+      // Đang ở hàng cuối (hàng 5): nhảy sang hàng 1 của cột tiếp theo
+      const nextColIdx = colIdx + 1;
+      if (nextColIdx >= columns.length) {
+        // Tự động tạo khu mới (5 cột = 25 bao)
+        setColumns((prev) => {
+          const currentCount = prev.length;
+          const newCols = [...prev];
+          for (let i = 0; i < 5; i++) {
+            newCols.push({
+              colIndex: currentCount + i,
+              colLabel: `${currentCount + i + 1}`,
+              rows: [null, null, null, null, null],
+            });
+          }
+          return newCols;
+        });
+      }
+
+      // Nếu đang xem tab từng khu, tự động chuyển tab nếu sang khu kế
+      const nextZoneIdx = Math.floor(nextColIdx / 5);
+      if (selectedZoneTab !== 'all' && selectedZoneTab !== nextZoneIdx) {
+        setSelectedZoneTab(nextZoneIdx);
+      }
+
+      setTimeout(() => {
+        focusCell(nextColIdx, 0);
+        const nextKey = `${nextColIdx}_0`;
+        const el = inputRefs.current[nextKey];
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+        }
+      }, 50);
+    }
+  };
+
   // Key navigation logic
   const handleKeyDown = (
     e: React.KeyboardEvent<HTMLInputElement>,
@@ -226,47 +295,9 @@ export const WeighingGrid: React.FC<WeighingGridProps> = ({
   ) => {
     if (isReadOnly) return;
 
-    if (e.key === 'Enter' || e.key === 'Tab') {
+    if (e.key === 'Enter' || e.key === 'Tab' || e.keyCode === 13) {
       e.preventDefault();
-      if (soundEnabled) playBeep(880, 0.05);
-
-      if (rowIdx < 4) {
-        // Jump to next row in same column (row 1 -> 2 -> 3 -> 4 -> 5)
-        focusCell(colIdx, rowIdx + 1);
-      } else {
-        // At row 5: jump to row 1 of next column
-        const nextColIdx = colIdx + 1;
-        if (nextColIdx >= columns.length) {
-          // Auto create next zone (5 columns = 25 bags)
-          setColumns((prev) => {
-            const currentCount = prev.length;
-            const newCols = [...prev];
-            for (let i = 0; i < 5; i++) {
-              newCols.push({
-                colIndex: currentCount + i,
-                colLabel: `${currentCount + i + 1}`,
-                rows: [null, null, null, null, null],
-              });
-            }
-            return newCols;
-          });
-        }
-
-        // If viewing a specific zone tab, auto-switch to next zone if moving past it
-        const nextZoneIdx = Math.floor(nextColIdx / 5);
-        if (selectedZoneTab !== 'all' && selectedZoneTab !== nextZoneIdx) {
-          setSelectedZoneTab(nextZoneIdx);
-        }
-
-        setTimeout(() => {
-          focusCell(nextColIdx, 0);
-          const nextKey = `${nextColIdx}_0`;
-          const el = inputRefs.current[nextKey];
-          if (el) {
-            el.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
-          }
-        }, 50);
-      }
+      moveToNextCell(colIdx, rowIdx);
     } else if (e.key === 'ArrowDown') {
       e.preventDefault();
       if (rowIdx < 4) {
@@ -365,36 +396,59 @@ export const WeighingGrid: React.FC<WeighingGridProps> = ({
   return (
     <div className="flex flex-col h-full bg-slate-50/50 dark:bg-slate-950 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-sm overflow-hidden">
       {/* 1. TOP HEADER BAR */}
-      <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-3 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
-        <div className="flex items-center gap-3">
-          <div className="p-2 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded-xl">
-            <Layers className="w-5 h-5" />
+      <div className="flex flex-wrap items-center justify-between gap-2 sm:gap-3 px-3 sm:px-5 py-2.5 sm:py-3 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
+        <div className="flex items-center gap-2 sm:gap-3">
+          <div className="p-1.5 sm:p-2 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded-xl">
+            <Layers className="w-4 h-4 sm:w-5 sm:h-5" />
           </div>
           <div>
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-bold uppercase tracking-wider text-slate-800 dark:text-slate-100">
-                Bàn Cân Lúa (Chia Khu 25 Bao)
+            <div className="flex items-center gap-1.5 sm:gap-2">
+              <span className="text-xs sm:text-sm font-bold uppercase tracking-wider text-slate-800 dark:text-slate-100">
+                Bàn Cân Lúa (25 Bao/Khu)
               </span>
-              <span className="text-xs font-mono px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 font-semibold border border-emerald-200 dark:border-emerald-800">
-                {totalZones} Khu ({columns.length} Cột)
+              <span className="text-[10px] sm:text-xs font-mono px-1.5 sm:px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 font-semibold border border-emerald-200 dark:border-emerald-800">
+                {totalZones} Khu
               </span>
             </div>
-            <p className="text-[11px] text-slate-500 dark:text-slate-400 hidden sm:block">
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 hidden md:block">
               Mỗi khu đúng 25 bao đều nhau (5 cột x 5 hàng), tiện đối chiếu đọ sổ với sổ tay
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-2 sm:gap-3">
+        <div className="flex items-center gap-1.5 sm:gap-3">
+          {/* Autosave Indicator */}
+          <div className="flex items-center gap-1 text-xs font-medium">
+            {saveStatus === 'saved' && (
+              <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/50 px-2 sm:px-2.5 py-1 rounded-full border border-emerald-200 dark:border-emerald-800 text-[11px] sm:text-xs">
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+                <span className="hidden sm:inline">Đã lưu ✓</span>
+              </span>
+            )}
+            {saveStatus === 'saving' && (
+              <span className="flex items-center gap-1 text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/50 px-2 sm:px-2.5 py-1 rounded-full border border-amber-200 dark:border-amber-800 animate-pulse text-[11px] sm:text-xs">
+                <RefreshCw className="w-3.5 h-3.5 animate-spin text-amber-500" />
+                <span className="hidden sm:inline">Đang lưu...</span>
+              </span>
+            )}
+            {saveStatus === 'error' && (
+              <span className="flex items-center gap-1 text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/50 px-2 py-1 rounded-full border border-red-200 dark:border-red-800 text-[11px] sm:text-xs">
+                <AlertTriangle className="w-3.5 h-3.5 text-red-500" />
+                <span>Lỗi</span>
+              </span>
+            )}
+          </div>
+
           {/* Quick Cross-Check Modal Trigger */}
           <button
             type="button"
             onClick={() => setIsCrossCheckModalOpen(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 dark:bg-amber-950/50 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-300 rounded-lg text-xs font-semibold hover:bg-amber-100 dark:hover:bg-amber-900/50 transition-all shadow-xs"
+            className="flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1.5 bg-amber-50 dark:bg-amber-950/50 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-300 rounded-lg text-xs font-semibold hover:bg-amber-100 dark:hover:bg-amber-900/50 transition-all shadow-xs"
             title="Mở bảng tổng hợp đọ sổ các khu"
           >
             <FileSpreadsheet className="w-4 h-4 text-amber-600 dark:text-amber-400" />
-            <span>Bảng Đọ Sổ Nhanh</span>
+            <span className="hidden xs:inline">Bảng Đọ Sổ</span>
+            <span className="xs:hidden">Đọ Sổ</span>
           </button>
 
           {/* Sound Toggle */}
@@ -412,98 +466,109 @@ export const WeighingGrid: React.FC<WeighingGridProps> = ({
             <span className="hidden md:inline">Âm thanh</span>
           </button>
 
-          {/* Autosave Indicator */}
-          <div className="flex items-center gap-1 text-xs font-medium">
-            {saveStatus === 'saved' && (
-              <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/50 px-2.5 py-1 rounded-full border border-emerald-200 dark:border-emerald-800">
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
-                <span className="hidden sm:inline">Đã lưu ✓</span>
-              </span>
-            )}
-            {saveStatus === 'saving' && (
-              <span className="flex items-center gap-1 text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/50 px-2.5 py-1 rounded-full border border-amber-200 dark:border-amber-800 animate-pulse">
-                <RefreshCw className="w-3.5 h-3.5 animate-spin text-amber-500" />
-                <span className="hidden sm:inline">Đang lưu...</span>
-              </span>
-            )}
-            {saveStatus === 'error' && (
-              <span className="flex items-center gap-1 text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/50 px-2.5 py-1 rounded-full border border-red-200 dark:border-red-800">
-                <AlertTriangle className="w-3.5 h-3.5 text-red-500" />
-                <span>Lỗi</span>
-              </span>
-            )}
-          </div>
-
           {/* Add Zone Button (+25 bao) */}
           {!isReadOnly && (
             <button
               type="button"
               onClick={addZone}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white rounded-lg text-xs font-semibold shadow-xs transition-all"
+              className="flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white rounded-lg text-xs font-semibold shadow-xs transition-all flex-shrink-0"
               title="Thêm một khu mới gồm 25 ô cân đều nhau"
             >
               <Plus className="w-4 h-4" />
-              <span>+ Thêm Khu (25 bao)</span>
+              <span className="hidden xs:inline">+ Thêm Khu (25 bao)</span>
+              <span className="xs:hidden">+ Khu</span>
             </button>
           )}
         </div>
       </div>
 
       {/* 2. ZONE NAVIGATION TABS (Thanh chọn nhanh khu để đọ sổ) */}
-      <div className="flex items-center gap-2 px-5 py-2.5 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/60 overflow-x-auto no-scrollbar">
-        <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 whitespace-nowrap mr-1">
-          Chọn Khu:
-        </span>
+      <div className="flex items-center justify-between gap-2 px-3 sm:px-5 py-2 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/60">
+        <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto no-scrollbar py-0.5 flex-1 min-w-0">
+          <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 whitespace-nowrap mr-1 hidden xs:inline">
+            Khu:
+          </span>
 
-        {/* Tab 'Tất cả các khu' */}
-        <button
-          type="button"
-          onClick={() => setSelectedZoneTab('all')}
-          className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${
-            selectedZoneTab === 'all'
-              ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-xs'
-              : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-100'
-          }`}
-        >
-          <span>Tất Cả ({totalZones} Khu)</span>
-        </button>
-
-        {/* Tab từng khu */}
-        {zoneData.map((z) => (
+          {/* Tab 'Tất cả các khu' */}
           <button
-            key={z.zoneIndex}
             type="button"
-            onClick={() => setSelectedZoneTab(z.zoneIndex)}
-            className={`flex items-center gap-2 px-3 py-1 rounded-lg text-xs font-bold transition-all whitespace-nowrap border ${
-              selectedZoneTab === z.zoneIndex
-                ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
-                : z.isChecked
-                ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800 hover:bg-emerald-100'
-                : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700/60'
+            onClick={() => setSelectedZoneTab('all')}
+            className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${
+              selectedZoneTab === 'all'
+                ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-xs'
+                : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 hover:bg-slate-100'
             }`}
           >
-            <span>{z.label} ({z.filledBags}/25)</span>
-            <span className="font-mono text-[11px] font-semibold opacity-90">
-              {formatKg(z.grossWeight)} kg
-            </span>
-            {z.isChecked && (
-              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 inline" />
-            )}
+            <span>Tất Cả ({totalZones})</span>
           </button>
-        ))}
+
+          {/* Tab từng khu */}
+          {zoneData.map((z) => (
+            <button
+              key={z.zoneIndex}
+              type="button"
+              onClick={() => setSelectedZoneTab(z.zoneIndex)}
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold transition-all whitespace-nowrap border ${
+                selectedZoneTab === z.zoneIndex
+                  ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs ring-2 ring-emerald-500/20'
+                  : z.isChecked
+                  ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800 hover:bg-emerald-100'
+                  : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700/60'
+              }`}
+            >
+              <span>{z.label}</span>
+              <span className="opacity-80 text-[11px] font-normal font-mono">({z.filledBags}/25)</span>
+              {z.isChecked && (
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-300 inline" />
+              )}
+            </button>
+          ))}
+        </div>
+
+        {/* Quick Stepper for mobile (< Khu Trước / Khu Sau >) */}
+        <div className="flex items-center gap-1 flex-shrink-0 pl-1 border-l border-slate-200 dark:border-slate-700">
+          <button
+            type="button"
+            disabled={selectedZoneTab === 'all' || selectedZoneTab === 0}
+            onClick={() => {
+              if (typeof selectedZoneTab === 'number' && selectedZoneTab > 0) {
+                setSelectedZoneTab(selectedZoneTab - 1);
+              }
+            }}
+            className="p-1 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-30 disabled:pointer-events-none"
+            title="Khu trước"
+          >
+            <ChevronLeft className="w-4 h-4" />
+          </button>
+          <button
+            type="button"
+            disabled={selectedZoneTab === 'all' || selectedZoneTab >= totalZones - 1}
+            onClick={() => {
+              if (typeof selectedZoneTab === 'number' && selectedZoneTab < totalZones - 1) {
+                setSelectedZoneTab(selectedZoneTab + 1);
+              } else if (selectedZoneTab === 'all' && totalZones > 0) {
+                setSelectedZoneTab(0);
+              }
+            }}
+            className="p-1 rounded-lg border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-30 disabled:pointer-events-none"
+            title="Khu sau"
+          >
+            <ChevronRight className="w-4 h-4" />
+          </button>
+        </div>
       </div>
 
       {/* 3. MAIN GRID CONTAINER WITH ZONES */}
       <div
         ref={gridContainerRef}
-        className="flex-1 overflow-x-auto overflow-y-auto p-4 sm:p-6"
+        className="flex-1 overflow-x-auto overflow-y-auto p-2.5 sm:p-6"
       >
-        <div className="inline-flex gap-6 min-w-full items-start">
+        <div className="inline-flex gap-4 sm:gap-6 min-w-full items-start">
           {displayedZones.map((zone) => {
             return (
               <div
                 key={zone.zoneIndex}
-                className={`flex flex-col bg-white dark:bg-slate-900 rounded-2xl border-2 transition-all shadow-sm overflow-hidden flex-shrink-0 ${
+                className={`flex flex-col bg-white dark:bg-slate-900 rounded-2xl border-2 transition-all shadow-sm overflow-hidden flex-shrink-0 w-full sm:w-auto ${
                   zone.isChecked
                     ? 'border-emerald-500 shadow-emerald-500/10 dark:shadow-emerald-950/20 ring-1 ring-emerald-500/30'
                     : 'border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
@@ -511,16 +576,16 @@ export const WeighingGrid: React.FC<WeighingGridProps> = ({
               >
                 {/* ZONE CARD HEADER */}
                 <div
-                  className={`flex items-center justify-between px-4 py-3 border-b ${
+                  className={`flex items-center justify-between px-3 sm:px-4 py-2.5 sm:py-3 border-b ${
                     zone.isChecked
                       ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800'
                       : 'bg-slate-50 dark:bg-slate-850 border-slate-200 dark:border-slate-800'
                   }`}
                 >
                   {/* Left: Zone Name & Bag Range */}
-                  <div className="flex items-center gap-2.5">
+                  <div className="flex items-center gap-2">
                     <div
-                      className={`w-8 h-8 rounded-lg flex items-center justify-center font-mono font-bold text-sm ${
+                      className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center font-mono font-bold text-xs sm:text-sm ${
                         zone.isChecked
                           ? 'bg-emerald-600 text-white'
                           : 'bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-200'
@@ -529,15 +594,15 @@ export const WeighingGrid: React.FC<WeighingGridProps> = ({
                       {zone.zoneNumber}
                     </div>
                     <div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-bold text-sm text-slate-800 dark:text-slate-100">
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-bold text-xs sm:text-sm text-slate-800 dark:text-slate-100">
                           {zone.label}
                         </span>
-                        <span className="text-xs font-mono text-slate-500 dark:text-slate-400">
+                        <span className="text-[11px] sm:text-xs font-mono text-slate-500 dark:text-slate-400">
                           ({zone.bagRangeText})
                         </span>
                       </div>
-                      <div className="flex items-center gap-2 text-[11px] font-medium">
+                      <div className="flex items-center gap-1.5 text-[10px] sm:text-[11px] font-medium">
                         <span
                           className={`font-semibold ${
                             zone.isFull
@@ -548,8 +613,8 @@ export const WeighingGrid: React.FC<WeighingGridProps> = ({
                           {zone.filledBags}/25 bao
                         </span>
                         {zone.avgWeight > 0 && (
-                          <span className="text-slate-400">
-                            • TB: ~{zone.avgWeight.toFixed(1)} kg/bao
+                          <span className="text-slate-400 hidden xs:inline">
+                            • ~{zone.avgWeight.toFixed(1)} kg/bao
                           </span>
                         )}
                       </div>
@@ -557,15 +622,15 @@ export const WeighingGrid: React.FC<WeighingGridProps> = ({
                   </div>
 
                   {/* Right: Subtotal of Zone & "Đã Đọ Sổ" Toggle */}
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2 sm:gap-3">
                     {/* Zone Subtotal Pill */}
                     <div className="text-right">
-                      <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                      <div className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-slate-400">
                         Tổng Khu {zone.zoneNumber}
                       </div>
-                      <div className="text-base sm:text-lg font-black font-mono text-emerald-600 dark:text-emerald-400">
+                      <div className="text-sm sm:text-lg font-black font-mono text-emerald-600 dark:text-emerald-400">
                         {formatKg(zone.grossWeight)}{' '}
-                        <span className="text-xs font-normal text-slate-500">kg</span>
+                        <span className="text-[10px] sm:text-xs font-normal text-slate-500">kg</span>
                       </div>
                     </div>
 
@@ -578,7 +643,7 @@ export const WeighingGrid: React.FC<WeighingGridProps> = ({
                           ? 'Khu này đã khớp đọ sổ (bấm để huỷ)'
                           : 'Bấm để đánh dấu khu này đã đọ sổ khớp'
                       }
-                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-bold transition-all ${
+                      className={`flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1 sm:py-1.5 rounded-xl border text-[11px] sm:text-xs font-bold transition-all ${
                         zone.isChecked
                           ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm active:scale-95'
                           : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-300 dark:border-slate-700 hover:border-emerald-500 hover:text-emerald-600'
@@ -586,32 +651,34 @@ export const WeighingGrid: React.FC<WeighingGridProps> = ({
                     >
                       {zone.isChecked ? (
                         <>
-                          <CheckSquare className="w-4 h-4" />
-                          <span>Đã đọ sổ ✓</span>
+                          <CheckSquare className="w-3.5 h-3.5" />
+                          <span className="hidden xs:inline">Đã đọ ✓</span>
+                          <span className="xs:hidden">✓</span>
                         </>
                       ) : (
                         <>
-                          <Square className="w-4 h-4" />
-                          <span>Chưa đọ</span>
+                          <Square className="w-3.5 h-3.5" />
+                          <span className="hidden xs:inline">Chưa đọ</span>
+                          <span className="xs:hidden">Đọ</span>
                         </>
                       )}
                     </button>
                   </div>
                 </div>
 
-                {/* ZONE GRID TABLE: 5 Columns x 5 Rows */}
-                <div className="p-2 sm:p-4 flex gap-1 sm:gap-3 overflow-x-auto">
+                {/* ZONE GRID TABLE: 5 Columns x 5 Rows (Bự ra, dễ chạm, số to rõ) */}
+                <div className="p-2 sm:p-5 flex gap-1.5 sm:gap-4 overflow-x-auto">
                   {/* Sticky Row Index Labels (H1 to H5) */}
-                  <div className="flex flex-col gap-1.5 sm:gap-2 pt-7 sm:pt-8 pr-0.5 sm:pr-1 flex-shrink-0">
+                  <div className="flex flex-col gap-1.5 sm:gap-2.5 pt-8 sm:pt-10 pr-0.5 sm:pr-1 flex-shrink-0">
                     {[1, 2, 3, 4, 5].map((rowNum) => (
                       <div
                         key={rowNum}
-                        className="h-11 sm:h-12 w-6 sm:w-9 flex items-center justify-center text-[10px] sm:text-xs font-bold text-slate-400 dark:text-slate-500 bg-slate-100 dark:bg-slate-800/80 rounded-md sm:rounded-lg border border-slate-200/60 dark:border-slate-800 font-mono"
+                        className="h-14 xs:h-16 sm:h-20 md:h-22 w-7 xs:w-8 sm:w-12 flex items-center justify-center text-xs xs:text-sm sm:text-base font-black text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800/90 rounded-xl sm:rounded-2xl border border-slate-200/80 dark:border-slate-800 font-mono shadow-xs"
                       >
                         H{rowNum}
                       </div>
                     ))}
-                    <div className="h-6 sm:h-8 w-6 sm:w-9 flex items-center justify-center text-[8px] sm:text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                    <div className="h-6 sm:h-9 w-7 xs:w-8 sm:w-12 flex items-center justify-center text-[9px] xs:text-[10px] sm:text-xs font-bold text-slate-400 uppercase tracking-wider">
                       Cột
                     </div>
                   </div>
@@ -625,14 +692,14 @@ export const WeighingGrid: React.FC<WeighingGridProps> = ({
                     return (
                       <div
                         key={actualColIdx}
-                        className="flex flex-col gap-1.5 sm:gap-2 w-[54px] xs:w-16 sm:w-28 flex-shrink-0 bg-slate-50/70 dark:bg-slate-950/40 p-1 sm:p-2 rounded-xl border border-slate-200/70 dark:border-slate-800/80 transition-all hover:border-emerald-300 dark:hover:border-emerald-800"
+                        className="flex flex-col gap-1.5 sm:gap-2.5 flex-1 min-w-[54px] xs:min-w-[62px] sm:min-w-0 sm:w-36 md:w-40 lg:w-44 flex-shrink-0 sm:flex-shrink-0 bg-slate-50/80 dark:bg-slate-950/50 p-1 xs:p-1.5 sm:p-2.5 rounded-2xl border border-slate-200/80 dark:border-slate-800 transition-all hover:border-emerald-300 dark:hover:border-emerald-800"
                       >
                         {/* Column Header */}
-                        <div className="flex items-center justify-between pb-1 border-b border-slate-200/60 dark:border-slate-800 text-center font-mono">
-                          <span className="text-[9px] sm:text-xs font-bold text-emerald-800 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950 px-1 sm:px-2 py-0.5 rounded truncate">
+                        <div className="flex items-center justify-between pb-1 sm:pb-1.5 border-b border-slate-200/80 dark:border-slate-800 text-center font-mono">
+                          <span className="text-[10px] xs:text-xs sm:text-sm font-black text-emerald-800 dark:text-emerald-300 bg-emerald-100/80 dark:bg-emerald-950 px-1.5 sm:px-2.5 py-0.5 rounded-lg truncate">
                             C{actualColIdx + 1}
                           </span>
-                          <span className="text-[8px] sm:text-[10px] text-slate-400 font-normal">
+                          <span className="text-[9px] xs:text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 font-bold">
                             {colBagCount}/5
                           </span>
                         </div>
@@ -652,9 +719,16 @@ export const WeighingGrid: React.FC<WeighingGridProps> = ({
                           const bagNumber = actualColIdx * 5 + rowIdx + 1;
 
                           return (
-                            <div key={rowIdx} className="relative group">
+                            <form
+                              key={rowIdx}
+                              onSubmit={(e) => {
+                                e.preventDefault();
+                                moveToNextCell(actualColIdx, rowIdx);
+                              }}
+                              className="relative group m-0 p-0"
+                            >
                               {/* Small bag index tag in corner */}
-                              <span className="absolute left-1 top-0.5 text-[8px] sm:text-[9px] font-mono font-medium text-slate-400 dark:text-slate-500 pointer-events-none z-10">
+                              <span className="absolute left-1.5 top-1 text-[9px] xs:text-[10px] sm:text-xs font-mono font-extrabold text-slate-400 dark:text-slate-500 bg-slate-100/90 dark:bg-slate-800/90 px-1 py-0.2 rounded pointer-events-none z-10">
                                 #{bagNumber}
                               </span>
 
@@ -662,6 +736,7 @@ export const WeighingGrid: React.FC<WeighingGridProps> = ({
                                 ref={(el) => (inputRefs.current[cellKey] = el)}
                                 type="text"
                                 inputMode="decimal"
+                                enterKeyHint="next"
                                 disabled={isReadOnly}
                                 value={currentVal}
                                 placeholder="—"
@@ -672,35 +747,35 @@ export const WeighingGrid: React.FC<WeighingGridProps> = ({
                                 onFocus={() =>
                                   setActiveCell({ col: actualColIdx, row: rowIdx })
                                 }
-                                className={`h-11 sm:h-12 w-full pt-2 sm:pt-3 text-center text-sm sm:text-lg font-mono font-bold rounded-lg border transition-all weigh-cell-input ${
+                                className={`h-14 xs:h-16 sm:h-20 md:h-22 w-full pt-3 xs:pt-4 sm:pt-5 text-center text-xl xs:text-2xl sm:text-3xl md:text-4xl font-mono font-black rounded-xl sm:rounded-2xl border-2 transition-all weigh-cell-input ${
                                   isWarning
-                                    ? 'border-amber-400 dark:border-amber-600 bg-amber-50/50 dark:bg-amber-950/40 text-amber-900 dark:text-amber-200 shadow-sm'
+                                    ? 'border-amber-400 dark:border-amber-600 bg-amber-50/70 dark:bg-amber-950/50 text-amber-900 dark:text-amber-200 shadow-md ring-2 ring-amber-400/30'
                                     : isActive
-                                    ? 'border-emerald-500 bg-emerald-50/40 dark:bg-emerald-950/30 text-emerald-900 dark:text-emerald-100 ring-2 ring-emerald-500/20'
+                                    ? 'border-emerald-500 bg-emerald-50/70 dark:bg-emerald-950/50 text-emerald-950 dark:text-emerald-100 ring-4 ring-emerald-500/25 shadow-lg scale-[1.02] z-20'
                                     : currentVal !== ''
-                                    ? 'border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100'
-                                    : 'border-slate-200 dark:border-slate-800 bg-white/60 dark:bg-slate-900/60 text-slate-400'
-                                } ${isReadOnly ? 'cursor-not-allowed opacity-90' : 'hover:border-emerald-400'}`}
+                                    ? 'border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
+                                    : 'border-slate-200 dark:border-slate-800 bg-white/70 dark:bg-slate-900/60 text-slate-400'
+                                } ${isReadOnly ? 'cursor-not-allowed opacity-90' : 'hover:border-emerald-400 active:scale-[0.99]'}`}
                               />
 
                               {/* Over-weight Warning Badge */}
                               {isWarning && (
                                 <div
-                                  className="absolute right-0.5 top-0.5 text-amber-500 pointer-events-none"
+                                  className="absolute right-1.5 top-1.5 text-amber-500 pointer-events-none z-10"
                                   title={`Số ký vượt ngưỡng cảnh báo (> ${warningThresholdKg}kg)`}
                                 >
-                                  <ShieldAlert className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+                                  <ShieldAlert className="w-4 h-4 sm:w-5 sm:h-5" />
                                 </div>
                               )}
-                            </div>
+                            </form>
                           );
                         })}
 
                         {/* Column Subtotal Footer */}
-                        <div className="mt-0.5 sm:mt-1 pt-1 sm:pt-1.5 border-t border-slate-200 dark:border-slate-800 text-center">
-                          <div className="text-[10px] sm:text-xs font-mono font-bold text-slate-800 dark:text-slate-200 truncate">
+                        <div className="mt-0.5 sm:mt-1 pt-1 sm:pt-2 border-t border-slate-200/80 dark:border-slate-800 text-center">
+                          <div className="text-[11px] xs:text-xs sm:text-sm md:text-base font-mono font-black text-slate-900 dark:text-slate-100 truncate">
                             {formatKg(colSubtotal)}{' '}
-                            <span className="text-[8px] sm:text-[10px] font-normal text-slate-500">kg</span>
+                            <span className="text-[8px] xs:text-[10px] sm:text-xs font-normal text-slate-500">kg</span>
                           </div>
                         </div>
                       </div>
@@ -709,12 +784,12 @@ export const WeighingGrid: React.FC<WeighingGridProps> = ({
                 </div>
 
                 {/* ZONE CARD FOOTER SUMMARY */}
-                <div className="px-4 py-2 bg-slate-50 dark:bg-slate-850 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs">
-                  <div className="text-slate-500 dark:text-slate-400 font-medium">
+                <div className="px-3 sm:px-4 py-2 bg-slate-50 dark:bg-slate-850 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs">
+                  <div className="text-slate-500 dark:text-slate-400 font-medium text-[11px] sm:text-xs">
                     {zone.label} ({zone.bagRangeText})
                   </div>
-                  <div className="font-mono font-bold text-slate-700 dark:text-slate-200">
-                    Tổng: <span className="text-emerald-600 dark:text-emerald-400 text-sm font-black">{formatKg(zone.grossWeight)} kg</span> ({zone.filledBags}/25 bao)
+                  <div className="font-mono font-bold text-slate-700 dark:text-slate-200 text-xs sm:text-sm">
+                    Tổng: <span className="text-emerald-600 dark:text-emerald-400 font-black">{formatKg(zone.grossWeight)} kg</span> ({zone.filledBags}/25 bao)
                   </div>
                 </div>
               </div>
@@ -723,70 +798,6 @@ export const WeighingGrid: React.FC<WeighingGridProps> = ({
         </div>
       </div>
 
-      {/* 4. STICKY BOTTOM GRAND SUMMARY BAR */}
-      <div className="border-t border-slate-200 dark:border-slate-800 bg-gradient-to-r from-slate-900 via-slate-850 to-slate-900 text-white p-4 sm:px-6 shadow-lg">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          {/* Bags & Zones count */}
-          <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-xl bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-emerald-400 font-bold font-mono text-base">
-              {session.totalWeighCount}
-            </div>
-            <div>
-              <div className="text-[11px] uppercase tracking-wider text-slate-400 font-medium">
-                Số bao đã cân ({totalZones} Khu)
-              </div>
-              <div className="text-base font-bold font-mono text-slate-100">
-                {session.totalWeighCount} <span className="text-xs text-slate-400 font-normal">bao</span>
-                <span className="text-xs text-emerald-400 font-semibold ml-2">
-                  ({checkedZones.length}/{totalZones} khu đã đọ)
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* Tare total (if configured) */}
-          {session.tareWeightPerBagKg > 0 && (
-            <div className="hidden md:block">
-              <div className="text-[11px] uppercase tracking-wider text-slate-400 font-medium">
-                Trừ bì ({session.tareWeightPerBagKg} kg/bao)
-              </div>
-              <div className="text-base font-bold font-mono text-amber-400">
-                - {formatKg(session.tareTotalKg)} <span className="text-xs font-normal">kg</span>
-              </div>
-            </div>
-          )}
-
-          {/* Total Net Weight */}
-          <div>
-            <div className="text-[11px] uppercase tracking-wider text-emerald-400 font-medium">
-              Tổng Khối Lượng Tịnh
-            </div>
-            <div className="text-xl sm:text-2xl font-black font-mono text-emerald-400 tracking-tight">
-              {formatKg(session.totalWeightKg)} <span className="text-sm font-semibold text-emerald-300">Kg</span>
-            </div>
-          </div>
-
-          {/* Price per Kg */}
-          <div className="hidden sm:block">
-            <div className="text-[11px] uppercase tracking-wider text-slate-400 font-medium">
-              Đơn giá / Kg
-            </div>
-            <div className="text-base font-bold font-mono text-slate-200">
-              {formatCurrency(session.pricePerKg)}
-            </div>
-          </div>
-
-          {/* Grand Total Amount */}
-          <div className="text-right">
-            <div className="text-[11px] uppercase tracking-wider text-amber-400 font-medium">
-              Tổng Thành Tiền
-            </div>
-            <div className="text-xl sm:text-3xl font-black font-mono text-amber-400 tracking-tight">
-              {formatCurrency(session.totalAmount)}
-            </div>
-          </div>
-        </div>
-      </div>
 
       {/* 5. MODAL: BẢNG ĐỐI CHIẾU ĐỌ SỔ NHANH TỪNG KHU (Cross-Check Summary Modal) */}
       {isCrossCheckModalOpen && (

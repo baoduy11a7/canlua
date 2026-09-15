@@ -147,20 +147,22 @@ export const WeighingStationPage: React.FC<WeighingStationPageProps> = ({ initia
   const statusBadge = currentSession ? getStatusBadge(currentSession.status) : null;
   const isReadOnly = currentSession?.status === 'closed' || currentSession?.status === 'paid';
 
+  const [isMobileInfoOpen, setIsMobileInfoOpen] = useState(false);
+
   return (
-    <div className="flex flex-col h-[calc(100vh-6.5rem)] gap-4">
+    <div className="flex flex-col lg:h-[calc(100vh-6.5rem)] gap-3 sm:gap-4 pb-4 lg:pb-0">
       {/* Session Quick Bar */}
-      <div className="bg-white dark:bg-slate-900 rounded-2xl p-4 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-wrap items-center justify-between gap-4">
-        {/* Left: Session Switcher & Info */}
-        <div className="flex flex-wrap items-center gap-3 sm:gap-4">
-          <div className="relative">
+      <div className="bg-white dark:bg-slate-900 rounded-2xl p-3 sm:p-4 border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        {/* Row 1: Session Selector & New Session Button */}
+        <div className="flex items-center justify-between sm:justify-start gap-2 sm:gap-3 w-full sm:w-auto">
+          <div className="relative flex-1 sm:flex-initial min-w-0 sm:min-w-[280px]">
             <select
               value={currentSession?._id || ''}
               onChange={(e) => {
                 const found = sessions.find((s) => s._id === e.target.value);
                 if (found) setCurrentSession(found);
               }}
-              className="appearance-none pl-4 pr-10 py-2.5 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm font-bold text-slate-900 dark:text-slate-100 cursor-pointer focus:border-brand-500"
+              className="w-full appearance-none pl-3 sm:pl-4 pr-9 py-2 sm:py-2.5 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs sm:text-sm font-bold text-slate-900 dark:text-slate-100 cursor-pointer focus:border-brand-500 truncate"
             >
               {sessions.map((s) => (
                 <option key={s._id} value={s._id}>
@@ -168,89 +170,198 @@ export const WeighingStationPage: React.FC<WeighingStationPageProps> = ({ initia
                 </option>
               ))}
             </select>
-            <ChevronDown className="w-4 h-4 text-slate-500 absolute right-3 top-3.5 pointer-events-none" />
+            <ChevronDown className="w-4 h-4 text-slate-500 absolute right-2.5 top-3 sm:top-3.5 pointer-events-none" />
           </div>
 
           <button
             onClick={() => setIsNewModalOpen(true)}
-            className="flex items-center gap-1.5 px-3.5 py-2.5 bg-brand-600 hover:bg-brand-700 text-white rounded-xl text-xs font-bold shadow-sm shadow-brand-600/20 active:scale-95 transition-all"
+            className="flex items-center gap-1 sm:gap-1.5 px-3 py-2 sm:py-2.5 bg-brand-600 hover:bg-brand-700 text-white rounded-xl text-xs font-bold shadow-sm shadow-brand-600/20 active:scale-95 transition-all flex-shrink-0"
+            title="Tạo phiếu cân mới"
           >
             <Plus className="w-4 h-4" />
-            <span>Phiếu Mới</span>
+            <span className="hidden xs:inline">Phiếu Mới</span>
+            <span className="xs:hidden">Mới</span>
           </button>
 
           {currentSession && statusBadge && (
             <div
-              className={`px-3 py-1.5 rounded-full border text-xs font-bold flex items-center gap-1.5 ${statusBadge.bg} ${statusBadge.text} ${statusBadge.border}`}
+              className={`px-2.5 py-1 rounded-full border text-[11px] sm:text-xs font-bold flex items-center gap-1.5 flex-shrink-0 ${statusBadge.bg} ${statusBadge.text} ${statusBadge.border}`}
             >
-              <span className="w-2 h-2 rounded-full bg-current" />
-              {statusBadge.label}
+              <span className="w-1.5 h-1.5 rounded-full bg-current" />
+              <span>{statusBadge.label}</span>
             </div>
           )}
         </div>
 
-        {/* Right: Action Buttons */}
+        {/* Row 2: Action Buttons */}
         {currentSession && (
-          <div className="flex flex-wrap items-center gap-2">
-            {/* Rename Household */}
-            <button
-              onClick={() => setIsRenameModalOpen(true)}
-              className="px-3 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all"
-            >
-              <UserCheck className="w-3.5 h-3.5" />
-              <span>Đổi tên hộ dân</span>
-            </button>
-
-            {/* Print Receipt */}
-            <button
-              onClick={() => setIsPrintModalOpen(true)}
-              className="px-3 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all"
-            >
-              <Printer className="w-3.5 h-3.5" />
-              <span>In phiếu cân</span>
-            </button>
-
-            {/* Close Session (if open) */}
+          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar w-full sm:w-auto pt-1 sm:pt-0 border-t sm:border-t-0 border-slate-100 dark:border-slate-800">
+            {/* Primary Action Button */}
             {currentSession.status === 'open' && (
               <button
                 onClick={handleCloseSession}
-                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-md shadow-emerald-600/20 active:scale-95 transition-all"
+                className="flex-1 sm:flex-initial px-3 sm:px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-md shadow-emerald-600/20 active:scale-95 transition-all whitespace-nowrap"
               >
                 <Lock className="w-3.5 h-3.5" />
                 <span>Chốt Phiếu & Nhập Kho</span>
               </button>
             )}
 
-            {/* Mark Paid (if closed) */}
             {currentSession.status === 'closed' && (
               <button
                 onClick={handleMarkPaid}
-                className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-md shadow-amber-500/20 active:scale-95 transition-all"
+                className="flex-1 sm:flex-initial px-3 sm:px-4 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-md shadow-amber-500/20 active:scale-95 transition-all whitespace-nowrap"
               >
                 <DollarSign className="w-3.5 h-3.5" />
                 <span>Xác Nhận Đã Thanh Toán</span>
               </button>
             )}
 
-            {/* Reopen Session (if closed or paid) */}
             {(currentSession.status === 'closed' || currentSession.status === 'paid') && (
               <button
                 onClick={handleReopen}
-                className="px-3 py-2 border border-slate-300 dark:border-slate-700 text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 rounded-xl text-xs font-medium flex items-center gap-1.5 transition-all"
+                className="px-2.5 sm:px-3 py-2 border border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white rounded-xl text-xs font-medium flex items-center gap-1 transition-all whitespace-nowrap"
               >
                 <Unlock className="w-3.5 h-3.5" />
-                <span>Mở lại phiếu</span>
+                <span>Mở lại</span>
               </button>
             )}
+
+            {/* Print Receipt */}
+            <button
+              onClick={() => setIsPrintModalOpen(true)}
+              className="px-2.5 sm:px-3 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all whitespace-nowrap"
+              title="In phiếu cân lúa"
+            >
+              <Printer className="w-3.5 h-3.5 text-slate-500" />
+              <span className="hidden xs:inline">In phiếu</span>
+            </button>
+
+            {/* Rename Household */}
+            <button
+              onClick={() => setIsRenameModalOpen(true)}
+              className="px-2.5 sm:px-3 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-semibold flex items-center gap-1.5 transition-all whitespace-nowrap"
+              title="Đổi tên hộ dân"
+            >
+              <UserCheck className="w-3.5 h-3.5 text-slate-500" />
+              <span className="hidden xs:inline">Đổi tên</span>
+            </button>
           </div>
         )}
       </div>
 
       {/* Main Content Area */}
       {currentSession ? (
-        <div className="flex-1 grid grid-cols-1 lg:grid-cols-4 gap-4 min-h-0">
-          {/* Left Info Panel */}
-          <div className="lg:col-span-1 flex flex-col gap-4">
+        <div className="flex-1 flex flex-col lg:grid lg:grid-cols-4 gap-3 sm:gap-4 min-h-0">
+          {/* MOBILE ONLY: Compact Quick Info & Stats Banner */}
+          <div className="lg:hidden bg-white dark:bg-slate-900 rounded-2xl p-3 border border-slate-200 dark:border-slate-800 shadow-xs">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-8 h-8 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center font-bold text-sm flex-shrink-0">
+                  🌾
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 truncate">
+                    <span className="font-extrabold text-sm text-slate-900 dark:text-white truncate">
+                      {currentSession.householdNameSnapshot}
+                    </span>
+                    <span className="text-[11px] px-1.5 py-0.5 rounded-md bg-emerald-50 dark:bg-emerald-950/70 text-emerald-700 dark:text-emerald-300 font-bold flex-shrink-0">
+                      {currentSession.riceTypeNameSnapshot}
+                    </span>
+                  </div>
+                  <div className="text-[11px] text-slate-500 dark:text-slate-400 truncate mt-0.5">
+                    <span className="font-semibold text-slate-700 dark:text-slate-300 font-mono">
+                      {formatCurrency(currentSession.pricePerKg)}
+                    </span>
+                    /kg • Bì:{' '}
+                    <span className="font-semibold text-slate-700 dark:text-slate-300">
+                      {currentSession.tareWeightPerBagKg > 0 ? `${currentSession.tareWeightPerBagKg} kg/bao` : '0'}
+                    </span>{' '}
+                    • {currentSession.warehouseNameSnapshot || 'Kho Chính'}
+                  </div>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setIsMobileInfoOpen(!isMobileInfoOpen)}
+                className="px-2.5 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-xs font-semibold flex items-center gap-1 flex-shrink-0 active:scale-95 transition-all"
+              >
+                <span>{isMobileInfoOpen ? 'Đóng' : 'Chi tiết'}</span>
+                <ChevronDown
+                  className={`w-3.5 h-3.5 transition-transform duration-200 ${
+                    isMobileInfoOpen ? 'rotate-180' : ''
+                  }`}
+                />
+              </button>
+            </div>
+
+            {/* Quick summary strip on mobile (THỐNG KÊ NHANH) */}
+            <div className="mt-2.5 pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs font-mono">
+              <div className="flex items-center gap-1 text-slate-600 dark:text-slate-300">
+                <span className="font-black text-slate-900 dark:text-white text-sm">{currentSession.totalWeighCount}</span> bao
+              </div>
+              <div className="text-emerald-600 dark:text-emerald-400 font-black text-sm">
+                {formatKg(currentSession.totalWeightKg)} Kg tịnh
+              </div>
+              <div className="text-amber-600 dark:text-amber-400 font-black text-sm">
+                {formatCurrency(currentSession.totalAmount)}
+              </div>
+            </div>
+
+            {/* Expanded details on mobile */}
+            {isMobileInfoOpen && (
+              <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-800 space-y-2 text-xs animate-in fade-in slide-in-from-top-1 duration-150">
+                <div className="grid grid-cols-2 gap-2.5">
+                  {currentSession.householdPhoneSnapshot && (
+                    <div className="col-span-2 flex items-center gap-1.5 text-slate-600 dark:text-slate-300">
+                      <Phone className="w-3.5 h-3.5 text-slate-400" />
+                      <span>{currentSession.householdPhoneSnapshot}</span>
+                    </div>
+                  )}
+                  {currentSession.householdAddressSnapshot && (
+                    <div className="col-span-2 flex items-center gap-1.5 text-slate-600 dark:text-slate-300">
+                      <MapPin className="w-3.5 h-3.5 text-slate-400" />
+                      <span>{currentSession.householdAddressSnapshot}</span>
+                    </div>
+                  )}
+                  <div>
+                    <span className="text-slate-400">Kho nhập lúa:</span>
+                    <div className="font-bold text-teal-600 dark:text-teal-400 truncate">
+                      {currentSession.warehouseNameSnapshot || 'Kho Chính'}
+                    </div>
+                  </div>
+                  <div>
+                    <span className="text-slate-400">Ngày cân:</span>
+                    <div className="font-semibold text-slate-700 dark:text-slate-300">
+                      {formatDate(currentSession.weighDate)}
+                    </div>
+                  </div>
+                  <div>
+                    <span className="text-slate-400">Khối lượng thô:</span>
+                    <div className="font-bold font-mono text-slate-800 dark:text-slate-200">
+                      {formatKg(currentSession.grossWeightKg)} kg
+                    </div>
+                  </div>
+                  <div>
+                    <span className="text-slate-400">Trừ bì:</span>
+                    <div className="font-bold font-mono text-amber-600">
+                      - {formatKg(currentSession.tareTotalKg)} kg
+                    </div>
+                  </div>
+                  {currentSession.nameChangeLog && currentSession.nameChangeLog.length > 0 && (
+                    <div className="col-span-2 p-2 bg-amber-50 dark:bg-amber-950/30 rounded-xl text-[11px] text-amber-800 dark:text-amber-300">
+                      <strong>Đổi tên: </strong>
+                      {currentSession.nameChangeLog.map((l) => `"${l.from}" ➔ "${l.to}"`).join(', ')}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* DESKTOP ONLY: Left Info Panel (Only Household Info Card - Redundant Quick Stats Card Removed!) */}
+          <div className="hidden lg:flex lg:col-span-1 flex-col gap-4">
             {/* Household card */}
             <div className="bg-white dark:bg-slate-900 rounded-2xl p-5 border border-slate-200 dark:border-slate-800 shadow-sm space-y-3.5">
               <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
@@ -307,7 +418,7 @@ export const WeighingStationPage: React.FC<WeighingStationPageProps> = ({ initia
                       : 'Không trừ bì'}
                   </div>
                 </div>
-                <div>
+                <div className="col-span-2">
                   <span className="text-slate-400">Ngày cân:</span>
                   <div className="font-semibold text-slate-700 dark:text-slate-300">
                     {formatDate(currentSession.weighDate)}
@@ -330,15 +441,19 @@ export const WeighingStationPage: React.FC<WeighingStationPageProps> = ({ initia
                 </div>
               )}
             </div>
-
-            {/* Quick stats snapshot card */}
+            {/* Quick stats snapshot card (THỐNG KÊ NHANH) */}
             <div className="bg-gradient-to-br from-slate-900 to-slate-850 rounded-2xl p-5 text-white shadow-sm space-y-3">
-              <div className="text-xs uppercase tracking-wider text-slate-400 font-semibold">
-                Thống Kê Nhanh
+              <div className="flex items-center justify-between border-b border-slate-700/60 pb-2.5">
+                <span className="text-xs uppercase tracking-wider text-slate-400 font-bold">
+                  Thống Kê Nhanh
+                </span>
+                <span className="text-xs font-mono font-bold text-emerald-400 bg-emerald-950/70 border border-emerald-800 px-2 py-0.5 rounded-full">
+                  {currentSession.totalWeighCount} bao
+                </span>
               </div>
               <div className="flex items-baseline justify-between">
-                <span className="text-xs text-slate-400">Số bao:</span>
-                <span className="text-lg font-bold font-mono">{currentSession.totalWeighCount} bao</span>
+                <span className="text-xs text-slate-400">Số bao đã cân:</span>
+                <span className="text-base font-bold font-mono">{currentSession.totalWeighCount} bao</span>
               </div>
               <div className="flex items-baseline justify-between">
                 <span className="text-xs text-slate-400">Khối lượng thô:</span>
@@ -346,17 +461,17 @@ export const WeighingStationPage: React.FC<WeighingStationPageProps> = ({ initia
               </div>
               {currentSession.tareWeightPerBagKg > 0 && (
                 <div className="flex items-baseline justify-between text-amber-400">
-                  <span className="text-xs">Trừ bì:</span>
+                  <span className="text-xs">Trừ bì ({currentSession.tareWeightPerBagKg} kg/bao):</span>
                   <span className="text-sm font-bold font-mono">- {formatKg(currentSession.tareTotalKg)} kg</span>
                 </div>
               )}
-              <div className="pt-2 border-t border-slate-700 flex items-baseline justify-between text-emerald-400">
+              <div className="pt-2 border-t border-slate-700/80 flex items-baseline justify-between text-emerald-400">
                 <span className="text-xs font-bold uppercase">Khối lượng tịnh:</span>
                 <span className="text-xl font-extrabold font-mono">{formatKg(currentSession.totalWeightKg)} Kg</span>
               </div>
               <div className="flex items-baseline justify-between text-amber-400">
                 <span className="text-xs font-bold uppercase">Thành tiền:</span>
-                <span className="text-xl font-extrabold font-mono">{formatCurrency(currentSession.totalAmount)}</span>
+                <span className="text-2xl font-black font-mono tracking-tight">{formatCurrency(currentSession.totalAmount)}</span>
               </div>
             </div>
           </div>
