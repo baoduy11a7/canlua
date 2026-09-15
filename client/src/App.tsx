@@ -17,19 +17,20 @@ import { Toaster } from 'sonner';
 
 export const App: React.FC = () => {
   const { isAuthenticated, initAuth } = useAuthStore();
-  const { darkMode } = useConfigStore();
   const [activeTab, setActiveTab] = useState<ActiveTab>('weighing');
   const [selectedSessionIdForWeighing, setSelectedSessionIdForWeighing] = useState<string | undefined>();
   const [isGlobalNewSessionModalOpen, setIsGlobalNewSessionModalOpen] = useState(false);
 
   useEffect(() => {
     initAuth();
-    if (darkMode) {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
+    // Bỏ màn hình bóng tối, mặc định luôn ở chế độ sáng rõ ràng
+    document.documentElement.classList.remove('dark');
+    try {
+      localStorage.removeItem('canlua_dark');
+    } catch {
+      //
     }
-  }, [darkMode]);
+  }, []);
 
   if (!isAuthenticated) {
     return (

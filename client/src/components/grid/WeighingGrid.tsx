@@ -9,8 +9,6 @@ import {
   RefreshCw,
   AlertTriangle,
   Plus,
-  Volume2,
-  VolumeX,
   ShieldAlert,
   Layers,
   CheckSquare,
@@ -451,20 +449,6 @@ export const WeighingGrid: React.FC<WeighingGridProps> = ({
             <span className="xs:hidden">Đọ Sổ</span>
           </button>
 
-          {/* Sound Toggle */}
-          <button
-            type="button"
-            onClick={toggleSound}
-            title={soundEnabled ? 'Tắt âm thanh beep' : 'Bật âm thanh beep khi gõ phím'}
-            className={`p-1.5 rounded-lg border text-xs font-medium flex items-center gap-1.5 transition-all ${
-              soundEnabled
-                ? 'bg-brand-50 border-brand-200 text-brand-700 dark:bg-brand-950/50 dark:border-brand-800 dark:text-brand-300'
-                : 'bg-slate-100 border-slate-200 text-slate-500 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-400'
-            }`}
-          >
-            {soundEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
-            <span className="hidden md:inline">Âm thanh</span>
-          </button>
 
           {/* Add Zone Button (+25 bao) */}
           {!isReadOnly && (

@@ -1,11 +1,6 @@
 import React from 'react';
 import { useAuthStore } from '../../store/authStore';
-import { useConfigStore } from '../../store/configStore';
 import {
-  Moon,
-  Sun,
-  Volume2,
-  VolumeX,
   LogOut,
   User,
   Scale,
@@ -25,7 +20,6 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenNewSession,
 }) => {
   const { user, logout } = useAuthStore();
-  const { darkMode, soundEnabled, toggleDarkMode, toggleSound } = useConfigStore();
 
   const getRoleBadge = (role?: string) => {
     switch (role) {
@@ -95,27 +89,6 @@ export const Navbar: React.FC<NavbarProps> = ({
           </button>
         )}
 
-        {/* Audio Beep Switch */}
-        <button
-          onClick={toggleSound}
-          title={soundEnabled ? 'Tắt âm thanh gõ phím' : 'Bật âm thanh gõ phím'}
-          className={`p-2 rounded-xl border transition-all ${
-            soundEnabled
-              ? 'bg-brand-50 text-brand-600 border-brand-200 dark:bg-brand-950/50 dark:text-brand-400 dark:border-brand-800'
-              : 'text-slate-400 border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800'
-          }`}
-        >
-          {soundEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
-        </button>
-
-        {/* Dark Mode Switch */}
-        <button
-          onClick={toggleDarkMode}
-          title="Chuyển chế độ Sáng / Tối"
-          className="p-2 rounded-xl border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all"
-        >
-          {darkMode ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-slate-600" />}
-        </button>
 
         {/* User profile & logout */}
         <div className="flex items-center gap-2 pl-2 border-l border-slate-200 dark:border-slate-800">
